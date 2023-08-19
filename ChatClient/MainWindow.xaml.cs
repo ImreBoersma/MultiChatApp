@@ -1,13 +1,14 @@
 ﻿#region Namespace reference
 
 using System;
-using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using MultiChatLibrary.Models;
 using MultiChatLibrary.Validators;
 using static MultiChatLibrary.Models.MessageModel;
@@ -20,22 +21,20 @@ namespace ChatClient
     {
         #region Fields
 
-        private const string DELIMITER = "|";
-        private const string EOM = "\n";
+        private const string Delimiter = "|";
+        private const string Eom = "\n";
 
-        private readonly SettingsModel Settings = new SettingsModel();
+        private readonly SettingsModel _settings = new SettingsModel();
 
-        private readonly SettingsValidator Validator = new SettingsValidator();
+        private NetworkStream _stream;
 
-        private NetworkStream stream;
-
-        private TcpClient tcpClient;
+        private TcpClient _tcpClient;
 
         private enum Type : byte
         {
-            CONNECT,
-            DISCONNECT,
-            MESSAGE
+            Connect,
+            Disconnect,
+            Message
         }
 
         #endregion Fields
@@ -56,38 +55,48 @@ namespace ChatClient
         /// </summary>
         /// <param name="message"><see cref="string">string</see> representing the message to be added.</param>
         /// <param name="issuer"><see cref="string">string</see> representing the issuer of the message.</param>
-        private void AddMessage(string message, string issuer = "") => Dispatcher.Invoke(() => listChats.Items.Add($"[{DateTime.Now:HH:mm:ss}] {(issuer != "" ? $"{issuer}: " : "")}{message}"));
+        private void AddMessage(string message, string issuer = "") => Dispatcher.Invoke(() => ListChats.Items.Add($"[{DateTime.Now:HH:mm:ss}] {(issuer != "" ? $"{issuer}: " : "")}{message}"));
 
         /// <summary>
         /// Converts the type, issuer and payload to a string able to be sent across the network.
         /// </summary>
-        /// <param name="type">Type of message, either: CONNECT, DISCONNECT or MESSAGE</param>
+        /// <param name="type">Type of message, either: Connect, DISCONNECT or MESSAGE</param>
         /// <param name="issuer">Sender of the message</param>
         /// <param name="payload">Payload of the message</param>
         /// <returns>String in right format to be received by the server.</returns>
-        private string ConvertMessage(Type type, string issuer, string payload = "") => $"@type:{type}{DELIMITER}@issuer:{issuer}{DELIMITER}@payload:{payload}{DELIMITER}{EOM}";
+        private string ConvertMessage(Type type, string issuer, string payload = "") => $"@type:{type}{Delimiter}@issuer:{issuer}{Delimiter}@payload:{payload}{Delimiter}{Eom}";
 
         /// <summary>
         /// Toggles the connect/disconnect to server button.
         /// </summary>
         private void ToggleStartStopButton()
         {
-            if (btnConnect.Visibility == Visibility.Hidden)
+            switch (BtnConnect.Visibility)
             {
-                btnConnect.Visibility = Visibility.Visible;
-            }
-            else if (btnConnect.Visibility == Visibility.Visible)
-            {
-                btnConnect.Visibility = Visibility.Hidden;
+                case Visibility.Hidden:
+                    BtnConnect.Visibility = Visibility.Visible;
+                    break;
+                case Visibility.Visible:
+                    BtnConnect.Visibility = Visibility.Hidden;
+                    break;
+                case Visibility.Collapsed:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
 
-            if (btnDisconnect.Visibility == Visibility.Hidden)
+            switch (BtnDisconnect.Visibility)
             {
-                btnDisconnect.Visibility = Visibility.Visible;
-            }
-            else if (btnDisconnect.Visibility == Visibility.Visible)
-            {
-                btnDisconnect.Visibility = Visibility.Hidden;
+                case Visibility.Hidden:
+                    BtnDisconnect.Visibility = Visibility.Visible;
+                    break;
+                case Visibility.Visible:
+                    BtnDisconnect.Visibility = Visibility.Hidden;
+                    break;
+                case Visibility.Collapsed:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
 
@@ -100,13 +109,13 @@ namespace ChatClient
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        async private void BtnConnect_Click(object sender, RoutedEventArgs e)
+        private async void BtnConnect_Click(object sender, RoutedEventArgs e)
         {
             AddMessage("Connecting...", "INFO");
-            List<string> errors = Validator.validateSettings(Settings);
+            var errors = SettingsValidator.ValidateSettings(_settings);
             if (errors != null)
             {
-                foreach (string error in errors)
+                foreach (var error in errors)
                 {
                     AddMessage(error, "ERROR");
                 }
@@ -115,15 +124,15 @@ namespace ChatClient
             {
                 try
                 {
-                    tcpClient = new TcpClient(Settings.IPAddress.ToString(), Settings.Port);
-                    stream = tcpClient.GetStream();
+                    _tcpClient = new TcpClient(_settings.IpAddress.ToString(), _settings.Port);
+                    _stream = _tcpClient.GetStream();
 
-                    byte[] buffer = Encoding.ASCII.GetBytes(ConvertMessage(Type.CONNECT, Settings.Name));
-                    await stream.WriteAsync(buffer, 0, buffer.Length);
+                    var buffer = Encoding.ASCII.GetBytes(ConvertMessage(Type.Connect, _settings.Name));
+                    await _stream.WriteAsync(buffer, 0, buffer.Length);
 
-                    _ = Task.Run(() => ReceiveData());
+                    _ = Task.Run(ReceiveData);
                     AddMessage("Connected!", "INFO");
-                    Dispatcher.Invoke(() => ToggleStartStopButton());
+                    Dispatcher.Invoke(ToggleStartStopButton);
                 }
                 catch (SocketException)
                 {
@@ -143,12 +152,12 @@ namespace ChatClient
         /// <param name="e"></param>
         private async void BtnDisconnect_Click(object sender, RoutedEventArgs e)
         {
-            byte[] buffer = Encoding.ASCII.GetBytes(ConvertMessage(Type.DISCONNECT, Settings.Name));
+            var buffer = Encoding.ASCII.GetBytes(ConvertMessage(Type.Disconnect, _settings.Name));
 
-            await stream.WriteAsync(buffer, 0, buffer.Length);
+            await _stream.WriteAsync(buffer, 0, buffer.Length);
             AddMessage("Disconnected...", "INFO");
-            Dispatcher.Invoke(() => ToggleStartStopButton());
-            tcpClient.Close();
+            Dispatcher.Invoke(ToggleStartStopButton);
+            _tcpClient.Close();
         }
 
         /// <summary>
@@ -158,35 +167,33 @@ namespace ChatClient
         /// <param name="e"></param>
         private async void BtnSend_Click(object sender, RoutedEventArgs e)
         {
-            Settings.Message = ConvertMessage(Type.MESSAGE, txtName.Text, txtMessage.Text);
+            _settings.Message = ConvertMessage(Type.Message, TxtName.Text, TxtMessage.Text);
 
-            Validator.validateSettings(Settings);
+            SettingsValidator.ValidateSettings(_settings);
 
-            MessageModel message = MultiChatLibrary.MultiChatLibrary.ExtractMessage(Settings.Message);
-            if (message.Issuer == Settings.Name) message.Issuer = "You";
+            var message = MultiChatLibrary.MultiChatLibrary.ExtractMessage(_settings.Message);
+            if (message.Issuer == _settings.Name) message.Issuer = "You";
 
-            byte[] buffer = Encoding.ASCII.GetBytes(Settings.Message);
+            var buffer = Encoding.ASCII.GetBytes(_settings.Message);
             try
             {
-                if (stream.CanWrite)
-                {
-                    if (message.Type != MessageModel.State.CONNECT)
-                    {
-                        await stream.WriteAsync(buffer, 0, buffer.Length);
-                        AddMessage(message.Payload, message.Issuer);
-                    }
-                }
+                if (!_stream.CanWrite) return;
+                if (message.Type == State.Connect) return;
+                await _stream.WriteAsync(buffer, 0, buffer.Length);
+                AddMessage(message.Payload, message.Issuer);
             }
             catch (ObjectDisposedException)
-            { }
+            {
+                AddMessage("You are not connected!", "ERROR");
+            }
             catch (Exception)
             {
                 AddMessage("You are not connected!", "ERROR");
             }
             finally
             {
-                txtMessage.Clear();
-                txtMessage.Focus();
+                TxtMessage.Clear();
+                TxtMessage.Focus();
             }
         }
 
@@ -195,10 +202,10 @@ namespace ChatClient
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void TxtBufferSize_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        private void TxtBufferSize_TextChanged(object sender, TextChangedEventArgs e)
         {
-            int.TryParse(txtBufferSize.Text, out int bufferSize);
-            Settings.BufferSize = bufferSize;
+            int.TryParse(TxtBufferSize.Text, out var bufferSize);
+            _settings.BufferSize = bufferSize;
         }
 
         /// <summary>
@@ -206,10 +213,10 @@ namespace ChatClient
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void TxtIPServer_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        private void TxtIPServer_TextChanged(object sender, TextChangedEventArgs e)
         {
-            IPAddress.TryParse(txtIPServer.Text, out IPAddress ip);
-            Settings.IPAddress = ip;
+            IPAddress.TryParse(TxtIpServer.Text, out var ip);
+            _settings.IpAddress = ip;
         }
 
         /// <summary>
@@ -217,24 +224,24 @@ namespace ChatClient
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void TxtMessage_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => Settings.Message = txtMessage.Text;
+        private void TxtMessage_TextChanged(object sender, TextChangedEventArgs e) => _settings.Message = TxtMessage.Text;
 
         /// <summary>
         /// Updates the Settings object to correspond the input given by the user.
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void TxtName_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => Settings.Name = txtName.Text;
+        private void TxtName_TextChanged(object sender, TextChangedEventArgs e) => _settings.Name = TxtName.Text;
 
         /// <summary>
         /// Updates the Settings object to correspond the input given by the user.
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void TxtPort_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        private void TxtPort_TextChanged(object sender, TextChangedEventArgs e)
         {
-            int.TryParse(txtPort.Text, out int port);
-            Settings.Port = port;
+            int.TryParse(TxtPort.Text, out var port);
+            _settings.Port = port;
         }
 
         #endregion Control events
@@ -246,24 +253,24 @@ namespace ChatClient
         /// </summary>
         private async void ReceiveData()
         {
-            byte[] buffer = new byte[Settings.BufferSize];
+            var buffer = new byte[_settings.BufferSize];
 
-            while (stream.CanRead)
+            while (_stream.CanRead)
             {
-                string textBuffer = "";
-                while (textBuffer.IndexOf(EOM) < 0)
+                var textBuffer = "";
+                while (textBuffer.IndexOf(Eom) < 0)
                 {
                     try
                     {
-                        int readBytes = await stream.ReadAsync(buffer, 0, Settings.BufferSize);
+                        var readBytes = await _stream.ReadAsync(buffer, 0, _settings.BufferSize);
                         textBuffer += Encoding.ASCII.GetString(buffer, 0, readBytes);
                         Console.WriteLine(textBuffer);
                     }
                     catch (IOException)
                     {
-                        tcpClient.Close();
-                        stream.Close();
-                        Dispatcher.Invoke(() => ToggleStartStopButton());
+                        _tcpClient.Close();
+                        _stream.Close();
+                        Dispatcher.Invoke(ToggleStartStopButton);
                         AddMessage("Server disconnected", "ERROR");
                         break;
                     }
@@ -273,33 +280,33 @@ namespace ChatClient
                     }
                     catch (Exception e)
                     {
-                        tcpClient.Close();
-                        stream.Close();
-                        Dispatcher.Invoke(() => ToggleStartStopButton());
+                        _tcpClient.Close();
+                        _stream.Close();
+                        Dispatcher.Invoke(ToggleStartStopButton);
                         AddMessage(e.ToString(), "ERROR");
                         break;
                     }
                 }
-                MessageModel message = MultiChatLibrary.MultiChatLibrary.ExtractMessage(textBuffer);
+                
+                var message = MultiChatLibrary.MultiChatLibrary.ExtractMessage(textBuffer);
                 Console.WriteLine(message.ToString());
-                if (message.Issuer != Settings.Name)
+                if (message.Issuer != _settings.Name)
                 {
                     switch (message.Type)
                     {
-                        case State.CONNECT:
+                        case State.Connect:
                             AddMessage($"{message.Issuer} connected!");
                             break;
 
-                        case State.DISCONNECT:
+                        case State.Disconnect:
                             AddMessage($"{message.Issuer} disconnected!");
                             break;
 
-                        case State.MESSAGE:
+                        case State.Message:
                             AddMessage(message.Payload, message.Issuer);
                             break;
-
                         default:
-                            break;
+                            throw new ArgumentOutOfRangeException();
                     }
                 }
             }
@@ -307,19 +314,20 @@ namespace ChatClient
 
         #endregion Threads
 
-        private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        private async void Window_Closing(object sender, CancelEventArgs e)
         {
             try
             {
-                byte[] buffer = Encoding.ASCII.GetBytes(ConvertMessage(Type.DISCONNECT, Settings.Name));
+                var buffer = Encoding.ASCII.GetBytes(ConvertMessage(Type.Disconnect, _settings.Name));
 
-                await stream.WriteAsync(buffer, 0, buffer.Length);
+                await _stream.WriteAsync(buffer, 0, buffer.Length);
                 AddMessage("Disconnected...", "INFO");
-                Dispatcher.Invoke(() => ToggleStartStopButton());
-                tcpClient.Close();
+                Dispatcher.Invoke(ToggleStartStopButton);
+                _tcpClient.Close();
             }
             catch (ObjectDisposedException)
             {
+                AddMessage("You are not connected!", "ERROR");
             }
             catch (Exception ex)
             {

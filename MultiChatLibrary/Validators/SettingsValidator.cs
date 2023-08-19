@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using FluentValidation;
-using FluentValidation.Results;
 using MultiChatLibrary.Models;
 
 namespace MultiChatLibrary.Validators
@@ -14,9 +15,10 @@ namespace MultiChatLibrary.Validators
             RuleFor(s => s.BufferSize).NotEmpty();
             RuleFor(s => s.BufferSize).GreaterThanOrEqualTo(1);
 
-            // IPAdress
-            RuleFor(s => s.IPAddress).NotEmpty();
-            RuleFor(s => s.IPAddress).Must(ip => !(ip is null) && IsLocalIpAddress(ip.ToString())).WithMessage("IP address is not local.");
+            // IPAddress
+            RuleFor(s => s.IpAddress).NotEmpty();
+            RuleFor(s => s.IpAddress).Must(ip => !(ip is null) && IsLocalIpAddress(ip.ToString()))
+                .WithMessage("IP address is not local.");
 
             // Name
             RuleFor(s => s.Name).NotEmpty();
@@ -32,24 +34,28 @@ namespace MultiChatLibrary.Validators
         /// </summary>
         /// <param name="host"></param>
         /// <returns>Returns true if IP Address is local</returns>
-        public static bool IsLocalIpAddress(string host)
+        private static bool IsLocalIpAddress(string host)
         {
             try
             {
-                IPAddress[] hostIPs = Dns.GetHostAddresses(host);
-                IPAddress[] localIPs = Dns.GetHostAddresses(Dns.GetHostName());
+                var hostIPs = Dns.GetHostAddresses(host);
+                var localIPs = Dns.GetHostAddresses(Dns.GetHostName());
 
-                foreach (IPAddress hostIP in hostIPs)
+                foreach (var hostIp in hostIPs)
                 {
                     // If IP is a loopback host
-                    if (IPAddress.IsLoopback(hostIP)) return true;
-                    foreach (IPAddress localIP in localIPs)
+                    if (IPAddress.IsLoopback(hostIp)) return true;
+                    if (localIPs.Contains(hostIp))
                     {
-                        if (hostIP.Equals(localIP)) return true;
+                        return true;
                     }
                 }
             }
-            catch { }
+            catch (Exception)
+            {
+                return false;
+            }
+
             return false;
         }
 
@@ -58,25 +64,15 @@ namespace MultiChatLibrary.Validators
         /// </summary>
         /// <param name="settings"></param>
         /// <returns>A list of errors or nothing.</returns>
-        public List<string> validateSettings(SettingsModel settings)
+        public static List<string> ValidateSettings(SettingsModel settings)
         {
-            SettingsValidator validator = new SettingsValidator();
-            ValidationResult results = validator.Validate(settings);
+            var validator = new SettingsValidator();
+            var results = validator.Validate(settings);
 
             // If results are not according to rules.
-            if (!results.IsValid)
-            {
-                List<string> errors = new List<string>();
-                foreach (ValidationFailure error in results.Errors)
-                {
-                    errors.Add(error.ErrorMessage.ToString());
-                }
-                return errors;
-            }
-            else
-            {
-                return null;
-            }
+            return !results.IsValid
+                ? results.Errors.Select(error => error.ErrorMessage.ToString()).ToList()
+                : new List<string>();
         }
     }
 }

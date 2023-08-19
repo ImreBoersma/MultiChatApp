@@ -4,21 +4,19 @@ namespace MultiChatLibrary.Models
 {
     public class SettingsModel
     {
-        private const string DELIMITER = "|";
-        private const string EOM = "\n";
+        private const string Delimiter = "|";
+        private const string Eom = "\n";
 
         private enum Type : byte
         {
-            CONNECT,
-            DISCONNECT,
-            MESSAGE
+            Connect
         }
 
         public int BufferSize { get; set; } = 1024;
 
-        public IPAddress IPAddress { get; set; } = IPAddress.Any;
+        public IPAddress IpAddress { get; set; } = IPAddress.Any;
 
-        public string Message { get; set; } = $"@type:{Type.CONNECT}{DELIMITER}@issuer:SERVER{DELIMITER}@payload:Starting...{DELIMITER}{EOM}";
+        public string Message { get; set; } = $"@type:{Type.Connect}{Delimiter}@issuer:SERVER{Delimiter}@payload:Starting...{Delimiter}{Eom}";
 
         public string Name { get; set; } = "NOTS Chat Server";
 

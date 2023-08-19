@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Microsoft.CSharp.RuntimeBinder;
 using MultiChatLibrary.Models;
 using MultiChatLibrary.Validators;
 using static MultiChatLibrary.Models.MessageModel;
@@ -21,12 +22,11 @@ namespace ChatServer
     {
         #region Fields
 
-        private const string EOM = "\n";
-        private readonly List<TcpClient> connectionList = new List<TcpClient>();
-        private readonly CancellationTokenSource cts = new CancellationTokenSource();
-        private readonly SettingsModel settings = new SettingsModel();
-        private readonly SettingsValidator validator = new SettingsValidator();
-        private TcpListener tcpListener;
+        private const string Eom = "\n";
+        private readonly List<TcpClient> _connectionList = new List<TcpClient>();
+        private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+        private readonly SettingsModel _settings = new SettingsModel();
+        private TcpListener _tcpListener;
 
         #endregion Fields
 
@@ -48,34 +48,45 @@ namespace ChatServer
         /// <param name="issuer"><see cref="string">string</see> representing the issuer of the message.</param>
         private void AddMessage(string message, string issuer = "")
         {
-            Dispatcher.Invoke(() => listChats.Items.Add($"[{DateTime.Now:HH:mm:ss}] {(issuer != "" ? $"{issuer}: " : "")}{message}"));
+            Dispatcher.Invoke(() => ListChats.Items.Add($"[{DateTime.Now:HH:mm:ss}] {(issuer != "" ? $"{issuer}: " : "")}{message}"));
         }
 
         /// <summary>
         /// Toggles the start/stop server button.
         /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
         private void ToggleStartStopButton()
         {
-            // If btnStart is hidden
-            if (btnStart.Visibility == Visibility.Hidden)
+            switch (BtnStart.Visibility)
             {
-                btnStart.Visibility = Visibility.Visible;
-            }
-            // If btnStart is visible
-            else if (btnStart.Visibility == Visibility.Visible)
-            {
-                btnStart.Visibility = Visibility.Hidden;
+                // If btnStart is hidden
+                case Visibility.Hidden:
+                    BtnStart.Visibility = Visibility.Visible;
+                    break;
+                // If btnStart is visible
+                case Visibility.Visible:
+                    BtnStart.Visibility = Visibility.Hidden;
+                    break;
+                case Visibility.Collapsed:
+                    break;
+                default:
+                    throw new RuntimeBinderException("Something went wrong.");
             }
 
-            // If btnStop is hidden
-            if (btnStop.Visibility == Visibility.Hidden)
+            switch (BtnStop.Visibility)
             {
-                btnStop.Visibility = Visibility.Visible;
-            }
-            // If btnStop is visible
-            else if (btnStop.Visibility == Visibility.Visible)
-            {
-                btnStop.Visibility = Visibility.Hidden;
+                // If btnStop is hidden
+                case Visibility.Hidden:
+                    BtnStop.Visibility = Visibility.Visible;
+                    break;
+                // If btnStop is visible
+                case Visibility.Visible:
+                    BtnStop.Visibility = Visibility.Hidden;
+                    break;
+                case Visibility.Collapsed:
+                    break;
+                default:
+                    throw new RuntimeBinderException("Something went wrong.");
             }
         }
 
@@ -90,11 +101,11 @@ namespace ChatServer
         /// <param name="e"></param>
         private async void BtnStart_Click(object sender, RoutedEventArgs e)
         {
-            List<string> errors = validator.validateSettings(settings);
+            var errors = SettingsValidator.ValidateSettings(_settings);
             // If there are no errors in the user input
             if (errors != null)
             {
-                foreach (string error in errors)
+                foreach (var error in errors)
                 {
                     AddMessage(error, "ERROR");
                 }
@@ -103,19 +114,22 @@ namespace ChatServer
             {
                 try
                 {
-                    tcpListener = new TcpListener(settings.IPAddress, settings.Port);
-                    tcpListener.Start();
+                    _tcpListener = new TcpListener(_settings.IpAddress, _settings.Port);
+                    _tcpListener.Start();
 
-                    Dispatcher.Invoke(() => ToggleStartStopButton());
+                    Dispatcher.Invoke(ToggleStartStopButton);
                     AddMessage("Listening for client...", "INFO");
                     TcpClient client;
-                    while ((client = await tcpListener.AcceptTcpClientAsync()) != null)
+                    while ((client = await _tcpListener.AcceptTcpClientAsync()) != null)
                     {
-                        _ = Task.Run(() => ReceiveData(client));
+                        var localClient = client;
+                        _ = Task.Run(() => ReceiveData(localClient));
                     }
                 }
                 catch (ObjectDisposedException)
-                { }
+                {
+                    AddMessage("Server stopped.", "INFO");
+                }
                 catch (OperationCanceledException error)
                 {
                     AddMessage(error.ToString(), "ERROR");
@@ -128,7 +142,7 @@ namespace ChatServer
                 catch (Exception ex)
                 {
                     AddMessage(ex.ToString(), "ERROR");
-                    Dispatcher.Invoke(() => ToggleStartStopButton());
+                    Dispatcher.Invoke(ToggleStartStopButton);
                 }
             }
         }
@@ -141,16 +155,14 @@ namespace ChatServer
         private void BtnStop_Click(object sender, RoutedEventArgs e)
         {
             AddMessage("Stopping the server...", "INFO");
-            cts.Cancel();
-            Dispatcher.Invoke(() => ToggleStartStopButton());
-            tcpListener.Stop();
+            _cts.Cancel();
+            Dispatcher.Invoke(ToggleStartStopButton);
+            _tcpListener.Stop();
             // If there are clients connected
-            if (connectionList.Count > 0)
+            if (_connectionList.Count <= 0) return;
+            foreach (var client in _connectionList)
             {
-                foreach (TcpClient client in connectionList)
-                {
-                    client.Close();
-                }
+                client.Close();
             }
         }
 
@@ -161,8 +173,8 @@ namespace ChatServer
         /// <param name="e"></param>
         private void TxtBufferSize_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
-            int.TryParse(txtBufferSize.Text, out int bufferSize);
-            settings.BufferSize = bufferSize;
+            int.TryParse(TxtBufferSize.Text, out var bufferSize);
+            _settings.BufferSize = bufferSize;
         }
 
         /// <summary>
@@ -172,8 +184,8 @@ namespace ChatServer
         /// <param name="e"></param>
         private void TxtIpAddress_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
-            IPAddress.TryParse(txtIpAddress.Text, out IPAddress ip);
-            settings.IPAddress = ip;
+            IPAddress.TryParse(TxtIpAddress.Text, out var ip);
+            _settings.IpAddress = ip;
         }
 
         /// <summary>
@@ -181,7 +193,7 @@ namespace ChatServer
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void TxtName_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => settings.Name = txtName.Text.ToString();
+        private void TxtName_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => _settings.Name = TxtName.Text;
 
         /// <summary>
         /// Updates the Settings object to correspond the input given by the user.
@@ -190,8 +202,8 @@ namespace ChatServer
         /// <param name="e"></param>
         private void TxtPort_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
-            int.TryParse(txtPort.Text, out int portNumber);
-            settings.Port = portNumber;
+            int.TryParse(TxtPort.Text, out var portNumber);
+            _settings.Port = portNumber;
         }
 
         #endregion Control events
@@ -205,21 +217,21 @@ namespace ChatServer
         /// <returns></returns>
         private async Task ReceiveData(TcpClient client)
         {
-            connectionList.Add(client);
+            _connectionList.Add(client);
 
-            byte[] buffer = new byte[settings.BufferSize];
-            NetworkStream netStream = client.GetStream();
+            var buffer = new byte[_settings.BufferSize];
+            var netStream = client.GetStream();
 
-            // While the networkstream of the client can read.
+            // While the network stream of the client can read.
             while (netStream.CanRead)
             {
-                string textBuffer = "";
+                var textBuffer = "";
                 // While the EOM in the message is not reached.
-                while (textBuffer.IndexOf(EOM) < 0)
+                while (textBuffer.IndexOf(Eom) < 0)
                 {
                     try
                     {
-                        int readBytes = await netStream.ReadAsync(buffer, 0, settings.BufferSize);
+                        var readBytes = await netStream.ReadAsync(buffer, 0, _settings.BufferSize);
                         textBuffer += Encoding.ASCII.GetString(buffer, 0, readBytes);
                     }
                     catch (IOException)
@@ -234,46 +246,51 @@ namespace ChatServer
                     {
                         netStream.Close();
                         client.Close();
-                        Dispatcher.Invoke(() => ToggleStartStopButton());
+                        Dispatcher.Invoke(ToggleStartStopButton);
                         AddMessage(e.ToString(), "ERROR");
                         break;
                     }
                 }
 
-                MessageModel message = MultiChatLibrary.MultiChatLibrary.ExtractMessage(textBuffer);
+                var message = MultiChatLibrary.MultiChatLibrary.ExtractMessage(textBuffer);
 
                 // Switch between message types
-                switch (message.Type)
-                {
-                    case State.CONNECT:
-                        if (message.Issuer != "")
-                        {
-                            await Dispatcher.InvokeAsync(() => listClients.Items.Add(message.Issuer));
-                            AddMessage($"{message.Issuer} connected!");
-                            _ = SendMessageToClients(message);
-                            break;
-                        }
-                        break;
+                await MessageTypeSwitch(client, message);
+            }
+        }
 
-                    case State.DISCONNECT:
-                        await Dispatcher.InvokeAsync(() => listClients.Items.Remove(message.Issuer));
-                        AddMessage($"{message.Issuer} disconnected!");
+        private async Task MessageTypeSwitch(TcpClient client, MessageModel message)
+        {
+            switch (message.Type)
+            {
+                case State.Connect:
+                    if (message.Issuer != "")
+                    {
+                        await Dispatcher.InvokeAsync(() => ListClients.Items.Add(message.Issuer));
+                        AddMessage($"{message.Issuer} connected!");
                         _ = SendMessageToClients(message);
-                        break;
+                    }
 
-                    case State.MESSAGE:
-                        if (message.Payload != "")
-                        {
-                            AddMessage(message.Payload, message.Issuer);
-                            _ = SendMessageToClients(message);
-                            break;
-                        }
-                        break;
+                    break;
 
-                    default:
-                        client.Close();
-                        break;
-                }
+                case State.Disconnect:
+                    await Dispatcher.InvokeAsync(() => ListClients.Items.Remove(message.Issuer));
+                    AddMessage($"{message.Issuer} disconnected!");
+                    _ = SendMessageToClients(message);
+                    break;
+
+                case State.Message:
+                    if (message.Payload != "")
+                    {
+                        AddMessage(message.Payload, message.Issuer);
+                        _ = SendMessageToClients(message);
+                    }
+
+                    break;
+
+                default:
+                    client.Close();
+                    break;
             }
         }
 
@@ -281,15 +298,16 @@ namespace ChatServer
         {
             try
             {
-                foreach (TcpClient c in connectionList)
+                foreach (var c in _connectionList)
                 {
-                    NetworkStream networkStream = c.GetStream();
-                    byte[] serverMessageByteArray = Encoding.ASCII.GetBytes(message.ToString());
+                    var networkStream = c.GetStream();
+                    var serverMessageByteArray = Encoding.ASCII.GetBytes(message.ToString());
                     await networkStream.WriteAsync(serverMessageByteArray, 0, serverMessageByteArray.Length);
                 }
             }
             catch (ObjectDisposedException)
             {
+                AddMessage("Client disconnected.", "INFO");
             }
             catch (Exception ex)
             {

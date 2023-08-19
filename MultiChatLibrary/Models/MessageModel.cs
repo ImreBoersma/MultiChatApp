@@ -13,9 +13,9 @@ namespace MultiChatLibrary.Models
 
         public enum State : byte
         {
-            CONNECT,
-            DISCONNECT,
-            MESSAGE
+            Connect,
+            Disconnect,
+            Message
         }
 
         public string Issuer { get; set; }
@@ -24,7 +24,7 @@ namespace MultiChatLibrary.Models
 
         public override string ToString()
         {
-            StringBuilder messageString = new StringBuilder();
+            var messageString = new StringBuilder();
             messageString.Append($"@type:{Type}|");
             messageString.Append($"@issuer:{Issuer}|");
             messageString.Append($"@payload:{Payload}|\n");

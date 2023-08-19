@@ -32,27 +32,27 @@
                 </Grid.ColumnDefinitions>
 
                 <Label>Name</Label>
-                <Label Grid.Row="1">Port</Label>
-                <Label Grid.Row="2">Buffer Size</Label>
-                <Label Grid.Row="3">IP Address</Label>
+                <Label Grid.Row="1" Grid.Column="0">Port</Label>
+                <Label Grid.Row="2" Grid.Column="0">Buffer Size</Label>
+                <Label Grid.Row="3" Grid.Column="0">IP Address</Label>
 
-                <TextBox Grid.Column="1" Text="NOTS Chat Server" x:Name="txtName" Margin="5" TextChanged="TxtName_TextChanged" />
-                <TextBox Grid.Row="1" Grid.Column="1" Text="9000" x:Name="txtPort" Margin="5" TextChanged="TxtPort_TextChanged" />
-                <TextBox Grid.Row="2" Grid.Column="1" Text="1024" x:Name="txtBufferSize" Margin="5" TextChanged="TxtBufferSize_TextChanged" />
-                <TextBox Grid.Row="3" Grid.Column="1" Text="127.0.0.1" x:Name="txtIpAddress" Margin="5" TextChanged="TxtIpAddress_TextChanged" />
+                <TextBox Grid.Row="0" Grid.Column="1" Text="NOTS Chat Server" x:Name="TxtName" Margin="5" TextChanged="TxtName_TextChanged" />
+                <TextBox Grid.Row="1" Grid.Column="1" Text="9000" x:Name="TxtPort" Margin="5" TextChanged="TxtPort_TextChanged" />
+                <TextBox Grid.Row="2" Grid.Column="1" Text="1024" x:Name="TxtBufferSize" Margin="5" TextChanged="TxtBufferSize_TextChanged" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="127.0.0.1" x:Name="TxtIpAddress" Margin="5" TextChanged="TxtIpAddress_TextChanged" />
 
-                <Button x:Name="btnStart" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Content="Start" Padding="5" Margin="10" Click="BtnStart_Click" Visibility="Visible" />
-                <Button x:Name="btnStop" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Content="Stop" Padding="5" Margin="10" Click="BtnStop_Click" Visibility="Hidden" />
+                <Button x:Name="BtnStart" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Content="Start" Padding="5" Margin="10" Click="BtnStart_Click" Visibility="Visible" />
+                <Button x:Name="BtnStop" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Content="Stop" Padding="5" Margin="10" Click="BtnStop_Click" Visibility="Hidden" />
             </Grid>
         </GroupBox>
 
-        <GroupBox Grid.Row="1" Header="Clients" Padding="10" Margin="10">
-            <ListBox x:Name="listClients">
+        <GroupBox Grid.Row="1" Grid.Column="0" Header="Clients" Padding="10" Margin="10">
+            <ListBox x:Name="ListClients">
             </ListBox>
         </GroupBox>
 
         <GroupBox Grid.Row="0" Grid.Column="1" Grid.RowSpan="3" Header="Chats" Padding="10" Margin="10">
-            <ListBox x:Name="listChats">
+            <ListBox x:Name="ListChats">
                 <ListBoxItem>This is the beginning of the chat...</ListBoxItem>
             </ListBox>
         </GroupBox>
